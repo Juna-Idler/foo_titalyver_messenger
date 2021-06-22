@@ -18,7 +18,7 @@
     <ClCompile Include="dllmain.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="JunaLyricsMessage.cpp">
+    <ClCompile Include="TitalyverMessage.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="main.cpp">
@@ -26,7 +26,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="JunaLyricsMessage.h">
+    <ClInclude Include="TitalyverMessage.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
   </ItemGroup>

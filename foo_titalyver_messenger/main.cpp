@@ -4,23 +4,28 @@
 #include "../foobar2000_SDK/foobar2000/helpers/helpers.h"
 //#include "../foobar2000_SDK/pfc/pfc.h"
 
-#include "JunaLyricsMessage.h"
+
+#include "json.hpp"
 
 
-DECLARE_COMPONENT_VERSION("Juna Lyrics Messenger Component","1.1",
-	"Post message for viewing lyrics\n"
-	"latest 2011 12/18\n"
-	"from 2011 9/23"
+
+#include "TitalyverMessage.h"
+
+
+DECLARE_COMPONENT_VERSION("Titalyver Messenger Component","0.1",
+	"Send message to Titalyver for viewing lyrics\n"
+	"latest 2021 6/23\n"
+	"from 2021 6/23?"
 	);
 
-VALIDATE_COMPONENT_FILENAME("foo_juna_lyrics_messenger.dll");
+VALIDATE_COMPONENT_FILENAME("foo_titalyver_messenger.dll");
 
 
 
 
 class LyricsMessenger
 {
-	JunaLyricsMessageSender Sender;
+	TitalyberMessenger Sender;
 
 	bool Playing;
 
@@ -51,66 +56,49 @@ private:
 public:
 	void on_playback_new_track(metadb_handle_ptr track)
 	{
-		DWORD time = ::timeGetTime();
+		using json = nlohmann::json;
+
+		json send_data;
 
 		path.convert(track->get_path());
 
 		::file_info_impl info;
 		track->get_info(info);
 
-		if (info.meta_exists("TITLE"))
-			title.convert(info.meta_get("TITLE", 0));
-		else
-			title.convert("");
-		if (info.meta_exists("ARTIST"))
-			artist.convert(info.meta_get("ARTIST", 0));
-		else
-			artist.convert("");
-		if (info.meta_exists("ALBUM"))
-			album.convert(info.meta_get("ALBUM",0));
-		else
-			album.convert("");
-		if (info.meta_exists("GENRE"))
-			genre.convert(info.meta_get("GENRE",0));
-		else
-			genre.convert("");
-		if (info.meta_exists("DATE"))
-			date.convert(info.meta_get("DATE",0));
-		else
-			date.convert("");
-		if (info.meta_exists("COMMENT"))
-			comment.convert(info.meta_get("COMMENT",0));
-		else
-			comment.convert("");
+		const t_size names_count = info.meta_get_count();
+		for (int i = 0; i < names_count; i++)
+		{
+			t_size values_count = info.meta_enum_value_count(i);
+			json a = json::array();
+			for (int j = 0; j < values_count; j++)
+			{
+				a.push_back(info.meta_enum_value(i, j));
+			}
+			const char* name = info.meta_enum_name(i);
+			send_data[name] = a;
+		}
 
-		Sender.SetData(100,
-			unsigned int(track->get_length() * 1000.0),
-			path.get_ptr(),path.length(),
-			title.get_ptr(),title.length(),
-			artist.get_ptr(),artist.length(),
-			album.get_ptr(),album.length(),
-			genre.get_ptr(),genre.length(),
-			date.get_ptr(),date.length(),
-			comment.get_ptr(),comment.length()
-			);
-
+		SYSTEMTIME time;
+		GetLocalTime(&time);
+		float dayoftime = (time.wHour * 60 + time.wMinute) * 60 + time.wSecond + time.wMilliseconds / 1000.0;
+		Sender.Update(TitalyverMessage::EnumPlaybackEvent::PlayNew, 0, dayoftime, send_data.dump());
 		Playing = true;
-
-		Sender.PostMessage(JunaLyricsMessage::PBE_New,time);
 	}
 	void on_playback_stop(play_control::t_stop_reason p_reason)
 	{
 		unsigned int milisec = unsigned int(static_api_ptr_t<playback_control>()->playback_get_position() * 1000);
 
 		Playing = false;
-		Sender.PostMessage(JunaLyricsMessage::PBE_Stop,milisec);
+//		Sender.PostMessage(TitalyverMessage::PBE_Stop,milisec);
 	}
 	void on_playback_seek(double time)
 	{
 		if (Playing)
-			Sender.PostMessage(JunaLyricsMessage::PBE_SeekPlaying,unsigned int(time * 1000));
+			;
+		//			Sender.PostMessage(TitalyverMessage::PBE_SeekPlaying,unsigned int(time * 1000));
 		else
-			Sender.PostMessage(JunaLyricsMessage::PBE_SeekPause,unsigned int(time * 1000));
+			;
+//			Sender.PostMessage(TitalyverMessage::PBE_SeekPause,unsigned int(time * 1000));
 	}
 
 	void on_playback_pause(bool p_state)
@@ -119,12 +107,12 @@ public:
 		if (p_state)
 		{
 			Playing = false;
-			Sender.PostMessage(JunaLyricsMessage::PBE_Pause,milisec);
+//			Sender.PostMessage(TitalyverMessage::PBE_Pause,milisec);
 		}
 		else
 		{
 			Playing = true;
-			Sender.PostMessage(JunaLyricsMessage::PBE_PauseCancel,milisec);
+//			Sender.PostMessage(TitalyverMessage::PBE_PauseCancel,milisec);
 		}
 	}
 /*
