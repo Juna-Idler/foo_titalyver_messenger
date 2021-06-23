@@ -80,7 +80,7 @@ void TitalyverMessage::Terminalize(void)
 }
 
 
-bool TitalyberMessenger::Initialize(void)
+bool TitalyverMessenger::Initialize(void)
 {
 	if (TitalyverMessage::Initialize())
 	{
@@ -103,7 +103,7 @@ bool TitalyberMessenger::Initialize(void)
 	}
 	return false;
 }
-void TitalyberMessenger::Terminalize(void)
+void TitalyverMessenger::Terminalize(void)
 {
 	if (MemoryMappedFile)
 	{
@@ -114,10 +114,9 @@ void TitalyberMessenger::Terminalize(void)
 }
 
 
-bool TitalyberMessenger::Update(TitalyverMessage::EnumPlaybackEvent pb_event, float seek_time, float time_of_day, const std::string json)
+bool TitalyverMessenger::Update(EnumPlaybackEvent pb_event, double seek_time, uint32_t time_of_day, const std::string &json)
 {
 	SIZE_T size = sizeof(pb_event) + sizeof(seek_time) + sizeof(time_of_day) + json.size();
-
 
 	MutexLock ml(Mutex);
 	if (ml.ret != WAIT_OBJECT_0 && ml.ret != WAIT_ABANDONED)
@@ -129,8 +128,9 @@ bool TitalyberMessenger::Update(TitalyverMessage::EnumPlaybackEvent pb_event, fl
 
 	size_t offset = 0;
 	*(EnumPlaybackEvent*)(address + offset) = pb_event; offset += sizeof(pb_event);
-	*(float*)(address + offset) = seek_time; offset += sizeof(seek_time);
-	*(float*)(address + offset) = time_of_day; offset += sizeof(time_of_day);
+	*(double*)(address + offset) = seek_time; offset += sizeof(seek_time);
+	*(uint32_t*)(address + offset) = time_of_day; offset += sizeof(time_of_day);
+	*(uint32_t*)(address + offset) = json.size(); offset += sizeof(uint32_t);
 
 	::memcpy(address + offset, json.c_str(), json.size());
 	::UnmapViewOfFile(address);
@@ -139,5 +139,27 @@ bool TitalyberMessenger::Update(TitalyverMessage::EnumPlaybackEvent pb_event, fl
 	return true;
 }
 
+bool TitalyverMessenger::Update(EnumPlaybackEvent pb_event, double seek_time, uint32_t time_of_day)
+{
+//	if (pb_event == EnumPlaybackEvent::PlayNew)
+//		return false;
+	MutexLock ml(Mutex);
+	if (ml.ret != WAIT_OBJECT_0 && ml.ret != WAIT_ABANDONED)
+		return false;
+
+	SIZE_T size = sizeof(pb_event) + sizeof(seek_time) + sizeof(time_of_day);
+	BYTE* address = static_cast<BYTE*>(::MapViewOfFile(MemoryMappedFile, FILE_MAP_WRITE, 0, 0, size));
+	if (address == NULL)
+		return false;
+
+	size_t offset = 0;
+	*(EnumPlaybackEvent*)(address + offset) = pb_event; offset += sizeof(pb_event);
+	*(double*)(address + offset) = seek_time; offset += sizeof(seek_time);
+	*(uint32_t*)(address + offset) = time_of_day; offset += sizeof(time_of_day);
+	::UnmapViewOfFile(address);
+
+	::SetEvent(UpdateEventHandle);
+	return true;
+}
 
 

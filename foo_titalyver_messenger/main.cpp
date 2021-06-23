@@ -7,7 +7,8 @@
 
 #include "json.hpp"
 
-
+//せっかくだからnlohmann::json使ってみたが、めちゃくちゃ単純な書き出しのみなので
+//手作業でやっても大して変らなかった気が
 
 #include "TitalyverMessage.h"
 
@@ -22,10 +23,9 @@ VALIDATE_COMPONENT_FILENAME("foo_titalyver_messenger.dll");
 
 
 
-
 class LyricsMessenger
 {
-	TitalyberMessenger Sender;
+	TitalyverMessenger Sender;
 
 	bool Playing;
 
@@ -43,96 +43,87 @@ public:
 		Sender.Terminalize();
 	}
 
-private:
-	pfc::stringcvt::string_wide_from_utf8 path;
-	pfc::stringcvt::string_wide_from_utf8 title;
-	pfc::stringcvt::string_wide_from_utf8 artist;
-	pfc::stringcvt::string_wide_from_utf8 album;
-	pfc::stringcvt::string_wide_from_utf8 genre;
-	pfc::stringcvt::string_wide_from_utf8 date;
-	pfc::stringcvt::string_wide_from_utf8 comment;
-
-
 public:
 	void on_playback_new_track(metadb_handle_ptr track)
 	{
 		using json = nlohmann::json;
 
-		json send_data;
-
-		path.convert(track->get_path());
+		json meta_data;
 
 		::file_info_impl info;
 		track->get_info(info);
 
 		const t_size names_count = info.meta_get_count();
-		for (int i = 0; i < names_count; i++)
+		for (unsigned i = 0; i < names_count; i++)
 		{
 			t_size values_count = info.meta_enum_value_count(i);
-			json a = json::array();
-			for (int j = 0; j < values_count; j++)
-			{
-				a.push_back(info.meta_enum_value(i, j));
-			}
 			const char* name = info.meta_enum_name(i);
-			send_data[name] = a;
+			if (values_count == 1)
+			{
+				meta_data[name] = info.meta_enum_value(i, 0);
+			}
+			else
+			{
+				json a = json::array();
+				for (unsigned j = 0; j < values_count; j++)
+				{
+					a.push_back(info.meta_enum_value(i, j));
+				}
+				meta_data[name] = a;
+			}
 		}
+		json send_data;
+		send_data["path"] = track->get_path();
+		send_data["meta"] = meta_data;
 
-		SYSTEMTIME time;
-		GetLocalTime(&time);
-		float dayoftime = (time.wHour * 60 + time.wMinute) * 60 + time.wSecond + time.wMilliseconds / 1000.0;
+		uint32_t dayoftime = TitalyverMessage::GetDayOfTime();
 		Sender.Update(TitalyverMessage::EnumPlaybackEvent::PlayNew, 0, dayoftime, send_data.dump());
-		Playing = true;
 	}
 	void on_playback_stop(play_control::t_stop_reason p_reason)
 	{
-		unsigned int milisec = unsigned int(static_api_ptr_t<playback_control>()->playback_get_position() * 1000);
-
+		if (p_reason == play_control::t_stop_reason::stop_reason_starting_another)
+			return;
 		Playing = false;
-//		Sender.PostMessage(TitalyverMessage::PBE_Stop,milisec);
+		double time = static_api_ptr_t<playback_control>()->playback_get_position();
+		uint32_t dayoftime = TitalyverMessage::GetDayOfTime();
+		Sender.Update(TitalyverMessage::EnumPlaybackEvent::Stop, time, dayoftime);
 	}
 	void on_playback_seek(double time)
 	{
-		if (Playing)
-			;
-		//			Sender.PostMessage(TitalyverMessage::PBE_SeekPlaying,unsigned int(time * 1000));
-		else
-			;
-//			Sender.PostMessage(TitalyverMessage::PBE_SeekPause,unsigned int(time * 1000));
+		uint32_t dayoftime = TitalyverMessage::GetDayOfTime();
+		Sender.Update(Playing ? TitalyverMessage::EnumPlaybackEvent::SeekPlaying
+							  : TitalyverMessage::EnumPlaybackEvent::SeekPause,
+					  time, dayoftime);
 	}
 
 	void on_playback_pause(bool p_state)
 	{
-		unsigned int milisec = unsigned int(static_api_ptr_t<playback_control>()->playback_get_position() * 1000);
-		if (p_state)
-		{
-			Playing = false;
-//			Sender.PostMessage(TitalyverMessage::PBE_Pause,milisec);
-		}
-		else
-		{
-			Playing = true;
-//			Sender.PostMessage(TitalyverMessage::PBE_PauseCancel,milisec);
-		}
+		double time = static_api_ptr_t<playback_control>()->playback_get_position();
+
+		Playing = !p_state;
+		Sender.Update(Playing ? TitalyverMessage::EnumPlaybackEvent::PauseCancel
+							  : TitalyverMessage::EnumPlaybackEvent::Pause,
+					  time, TitalyverMessage::GetDayOfTime());
 	}
-/*
+
 	void on_playback_starting(play_control::t_track_command p_command,bool p_paused)
 	{
-		if (Message.GetEnterMode() != JunaLyricsMessage::EM_Sender)
-			return;
+		double time = static_api_ptr_t<playback_control>()->playback_get_position();
+
+		Playing = !p_paused;
+		Sender.Update(Playing ? TitalyverMessage::EnumPlaybackEvent::PauseCancel
+							  : TitalyverMessage::EnumPlaybackEvent::Pause,
+					  time, TitalyverMessage::GetDayOfTime());
+
 	}
-	void on_playback_time(double p_time)
-	{
-		if (Message.GetEnterMode() != JunaLyricsMessage::EM_Sender)
-			return;
-		unsigned int milisec = unsigned int(static_api_ptr_t<playback_control>()->playback_get_position() * 1000);
-		PostMessage(JunaLyricsMessage::PBE_Time,milisec);
-	}
-*/
 /*
 	void on_playback_edited(metadb_handle_ptr track)
 	{
 		console::info("on_playback_edited()");
+	}
+
+	void on_playback_time(double p_time)
+	{
 	}
 	void on_playback_dynamic_info(const file_info & p_info)
 	{
@@ -174,7 +165,7 @@ public:
 	virtual unsigned int get_flags(void)
 	{
 		return 
-//			flag_on_playback_starting | 
+			flag_on_playback_starting | 
 			flag_on_playback_new_track | 
 			flag_on_playback_stop |
 			flag_on_playback_seek |
@@ -207,7 +198,7 @@ public:
 
 	virtual void on_playback_starting(play_control::t_track_command p_command,bool p_paused)
 	{
-//		component_main.on_playback_starting(p_command,p_paused);
+		component_main.on_playback_starting(p_command,p_paused);
 	}
 	virtual void on_playback_pause(bool p_state)
 	{

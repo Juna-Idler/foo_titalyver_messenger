@@ -19,12 +19,19 @@ public:
 		NULL_ = 0,
 		PlayNew = 1,
 		Stop = 2,
-		Pause = 3,
-		PauseCancel = 4,
+		PauseCancel = 3,
+		Pause = 4,
 		SeekPlaying = 5,
 		SeekPause = 6,
 	};
 
+
+	static inline uint32_t GetDayOfTime(void)
+	{
+		::SYSTEMTIME time;
+		::GetLocalTime(&time);
+		return ((time.wHour * 60 + time.wMinute) * 60 + time.wSecond) * 1000 + time.wMilliseconds;
+	}
 
 protected:
 	HANDLE Mutex;
@@ -39,23 +46,24 @@ protected:
 	~TitalyverMessage();
 };
 
-class TitalyberMessenger : public TitalyverMessage
+class TitalyverMessenger : public TitalyverMessage
 {
 public:
-	TitalyberMessenger(void) : TitalyverMessage(), MemoryMappedFile(NULL) {}
-	~TitalyberMessenger() {Terminalize();}
+	TitalyverMessenger(void) : TitalyverMessage(), MemoryMappedFile(NULL) {}
+	~TitalyverMessenger() {Terminalize();}
 
 	bool Initialize(void);
 	void Terminalize(void);
 
-	bool Update(EnumPlaybackEvent pb_event,float seek_time,float time_of_day,const std::string json);
+	bool Update(EnumPlaybackEvent pb_event,double seek_time, uint32_t time_of_day,const std::string &json);
+	bool Update(EnumPlaybackEvent pb_event, double seek_time, uint32_t time_of_day);
 
 private:
 	HANDLE MemoryMappedFile;
 };
 
 /*
-class TitalyverMessageReceiverListener : public TitalyverMessage
+class TitalyverMessageReceiver : public TitalyverMessage
 {
 public:
 	TitalyverMessageReceiverListener(void) : TitalyverMessage() {}
