@@ -165,7 +165,7 @@ public:
 	virtual unsigned int get_flags(void)
 	{
 		return 
-			flag_on_playback_starting | 
+//			flag_on_playback_starting | 
 			flag_on_playback_new_track | 
 			flag_on_playback_stop |
 			flag_on_playback_seek |
