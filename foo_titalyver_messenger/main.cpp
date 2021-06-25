@@ -75,7 +75,7 @@ public:
 		json send_data;
 		send_data["path"] = track->get_path();
 		send_data["meta"] = meta_data;
-
+		Playing = true;
 		uint32_t dayoftime = TitalyverMessage::GetDayOfTime();
 		Sender.Update(TitalyverMessage::EnumPlaybackEvent::PlayNew, 0, dayoftime, send_data.dump());
 	}
