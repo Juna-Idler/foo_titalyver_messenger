@@ -46,6 +46,8 @@ public:
 public:
 	void on_playback_new_track(metadb_handle_ptr track)
 	{
+		if (!Sender.IsValid())
+			return;
 		using json = nlohmann::json;
 
 		json meta_data;
@@ -81,6 +83,9 @@ public:
 	}
 	void on_playback_stop(play_control::t_stop_reason p_reason)
 	{
+		if (!Sender.IsValid())
+			return;
+
 		if (p_reason == play_control::t_stop_reason::stop_reason_starting_another)
 			return;
 		Playing = false;
@@ -90,6 +95,8 @@ public:
 	}
 	void on_playback_seek(double time)
 	{
+		if (!Sender.IsValid())
+			return;
 		uint32_t dayoftime = TitalyverMessage::GetDayOfTime();
 		Sender.Update(Playing ? TitalyverMessage::EnumPlaybackEvent::SeekPlaying
 							  : TitalyverMessage::EnumPlaybackEvent::SeekPause,
@@ -98,6 +105,8 @@ public:
 
 	void on_playback_pause(bool p_state)
 	{
+		if (!Sender.IsValid())
+			return;
 		double time = static_api_ptr_t<playback_control>()->playback_get_position();
 
 		Playing = !p_state;
@@ -108,6 +117,8 @@ public:
 
 	void on_playback_starting(play_control::t_track_command p_command,bool p_paused)
 	{
+		if (!Sender.IsValid())
+			return;
 		double time = static_api_ptr_t<playback_control>()->playback_get_position();
 
 		Playing = !p_paused;

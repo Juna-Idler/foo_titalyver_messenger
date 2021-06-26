@@ -25,6 +25,7 @@ public:
 		SeekPause = 6,
 	};
 
+	inline bool IsValid(void) { return Mutex != NULL; }
 
 	static inline uint32_t GetDayOfTime(void)
 	{
