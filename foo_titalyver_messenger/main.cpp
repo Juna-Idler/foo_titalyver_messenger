@@ -15,7 +15,7 @@
 
 DECLARE_COMPONENT_VERSION("Titalyver Messenger Component","0.1",
 	"Send message to Titalyver for viewing lyrics\n"
-	"latest 2021 6/23\n"
+	"latest 2021 7/1\n"
 	"from 2021 6/23?"
 	);
 
@@ -78,8 +78,8 @@ public:
 		send_data["path"] = track->get_path();
 		send_data["meta"] = meta_data;
 		Playing = true;
-		uint32_t dayoftime = TitalyverMessage::GetDayOfTime();
-		Sender.Update(TitalyverMessage::EnumPlaybackEvent::PlayNew, 0, dayoftime, send_data.dump());
+		double time = static_api_ptr_t<playback_control>()->playback_get_position();
+		Sender.Update(TitalyverMessage::EnumPlaybackEvent::SeekUpdatePlay, time,  send_data.dump());
 	}
 	void on_playback_stop(play_control::t_stop_reason p_reason)
 	{
@@ -90,17 +90,15 @@ public:
 			return;
 		Playing = false;
 		double time = static_api_ptr_t<playback_control>()->playback_get_position();
-		uint32_t dayoftime = TitalyverMessage::GetDayOfTime();
-		Sender.Update(TitalyverMessage::EnumPlaybackEvent::Stop, time, dayoftime);
+		Sender.Update(TitalyverMessage::EnumPlaybackEvent::Stop, time);
 	}
 	void on_playback_seek(double time)
 	{
 		if (!Sender.IsValid())
 			return;
-		uint32_t dayoftime = TitalyverMessage::GetDayOfTime();
-		Sender.Update(Playing ? TitalyverMessage::EnumPlaybackEvent::SeekPlaying
-							  : TitalyverMessage::EnumPlaybackEvent::SeekPause,
-					  time, dayoftime);
+		Sender.Update(Playing ? TitalyverMessage::EnumPlaybackEvent::SeekPlay
+							  : TitalyverMessage::EnumPlaybackEvent::SeekStop,
+					  time);
 	}
 
 	void on_playback_pause(bool p_state)
@@ -110,9 +108,9 @@ public:
 		double time = static_api_ptr_t<playback_control>()->playback_get_position();
 
 		Playing = !p_state;
-		Sender.Update(Playing ? TitalyverMessage::EnumPlaybackEvent::PauseCancel
-							  : TitalyverMessage::EnumPlaybackEvent::Pause,
-					  time, TitalyverMessage::GetDayOfTime());
+		Sender.Update(Playing ? TitalyverMessage::EnumPlaybackEvent::SeekPlay
+							  : TitalyverMessage::EnumPlaybackEvent::SeekStop,
+					  time);
 	}
 
 	void on_playback_starting(play_control::t_track_command p_command,bool p_paused)
@@ -122,9 +120,9 @@ public:
 		double time = static_api_ptr_t<playback_control>()->playback_get_position();
 
 		Playing = !p_paused;
-		Sender.Update(Playing ? TitalyverMessage::EnumPlaybackEvent::PauseCancel
-							  : TitalyverMessage::EnumPlaybackEvent::Pause,
-					  time, TitalyverMessage::GetDayOfTime());
+		Sender.Update(Playing ? TitalyverMessage::EnumPlaybackEvent::SeekPlay
+							  : TitalyverMessage::EnumPlaybackEvent::SeekStop,
+					  time);
 
 	}
 /*

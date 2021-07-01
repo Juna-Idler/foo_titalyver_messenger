@@ -14,16 +14,31 @@ public:
 	static const wchar_t* const  UpdateEvent_Name;
 	static const wchar_t* const  Mutex_Name;
 
-	enum EnumPlaybackEvent
+
+	 enum EnumPlaybackEvent
 	{
+		Bit_Play = 1,
+		Bit_Stop = 2,
+		Bit_Update = 4,
+		Bit_Seek = 8,
+
 		NULL_ = 0,
-		PlayNew = 1,
+		Play = 1,
 		Stop = 2,
-		PauseCancel = 3,
-		Pause = 4,
-		SeekPlaying = 5,
-		SeekPause = 6,
+
+		Update = 4,
+		UpdatePlay = 5,
+		UpdateStop = 6,
+
+		Seek = 8,
+		SeekPlay = 9,
+		SeekStop = 10,
+
+		SeekUpdate = 12,
+		SeekUpdatePlay = 13,
+		SeekUpdateStop = 14,
 	};
+
 
 	inline bool IsValid(void) { return Mutex != NULL; }
 
@@ -56,8 +71,8 @@ public:
 	bool Initialize(void);
 	void Terminalize(void);
 
-	bool Update(EnumPlaybackEvent pb_event,double seek_time, uint32_t time_of_day,const std::string &json);
-	bool Update(EnumPlaybackEvent pb_event, double seek_time, uint32_t time_of_day);
+	bool Update(EnumPlaybackEvent pb_event,double seek_time, const std::string &json);
+	bool Update(EnumPlaybackEvent pb_event, double seek_time);
 
 private:
 	HANDLE MemoryMappedFile;

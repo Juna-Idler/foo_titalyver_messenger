@@ -114,9 +114,10 @@ void TitalyverMessenger::Terminalize(void)
 }
 
 
-bool TitalyverMessenger::Update(EnumPlaybackEvent pb_event, double seek_time, uint32_t time_of_day, const std::string &json)
+bool TitalyverMessenger::Update(EnumPlaybackEvent pb_event, double seek_time, const std::string &json)
 {
-	SIZE_T size = sizeof(pb_event) + sizeof(seek_time) + sizeof(time_of_day) + json.size();
+	uint32_t time_of_day = GetDayOfTime();
+	SIZE_T size = sizeof(pb_event) + sizeof(seek_time) + sizeof(time_of_day) + sizeof(uint32_t) + json.size();
 
 	MutexLock ml(Mutex);
 	if (ml.ret != WAIT_OBJECT_0 && ml.ret != WAIT_ABANDONED)
@@ -139,8 +140,10 @@ bool TitalyverMessenger::Update(EnumPlaybackEvent pb_event, double seek_time, ui
 	return true;
 }
 
-bool TitalyverMessenger::Update(EnumPlaybackEvent pb_event, double seek_time, uint32_t time_of_day)
+bool TitalyverMessenger::Update(EnumPlaybackEvent pb_event, double seek_time)
 {
+	uint32_t time_of_day = GetDayOfTime();
+
 //	if (pb_event == EnumPlaybackEvent::PlayNew)
 //		return false;
 	MutexLock ml(Mutex);
