@@ -17,27 +17,18 @@ public:
 
 	 enum EnumPlaybackEvent
 	{
-		Bit_Play = 1,
-		Bit_Stop = 2,
-		Bit_Update = 4,
-		Bit_Seek = 8,
+		 Bit_Play = 1,
+		 Bit_Stop = 2,
+		 Bit_Seek = 4,
 
-		NULL_ = 0,
-		Play = 1,
-		Stop = 2,
+		 NULL_= 0,
+		 Play = 1,
+		 Stop = 2,
 
-		Update = 4,
-		UpdatePlay = 5,
-		UpdateStop = 6,
-
-		Seek = 8,
-		SeekPlay = 9,
-		SeekStop = 10,
-
-		SeekUpdate = 12,
-		SeekUpdatePlay = 13,
-		SeekUpdateStop = 14,
-	};
+		 Seek = 4,
+		 SeekPlay = 5,
+		 SeekStop = 6,
+	 };
 
 
 	inline bool IsValid(void) { return Mutex != NULL; }

@@ -117,7 +117,7 @@ void TitalyverMessenger::Terminalize(void)
 bool TitalyverMessenger::Update(EnumPlaybackEvent pb_event, double seek_time, const std::string &json)
 {
 	uint32_t time_of_day = GetDayOfTime();
-	SIZE_T size = sizeof(pb_event) + sizeof(seek_time) + sizeof(time_of_day) + sizeof(uint32_t) + json.size();
+	SIZE_T size = sizeof(pb_event) + sizeof(seek_time) + sizeof(time_of_day) + sizeof(time_of_day) + sizeof(uint32_t) + json.size();
 
 	MutexLock ml(Mutex);
 	if (ml.ret != WAIT_OBJECT_0 && ml.ret != WAIT_ABANDONED)
@@ -130,6 +130,7 @@ bool TitalyverMessenger::Update(EnumPlaybackEvent pb_event, double seek_time, co
 	size_t offset = 0;
 	*(EnumPlaybackEvent*)(address + offset) = pb_event; offset += sizeof(pb_event);
 	*(double*)(address + offset) = seek_time; offset += sizeof(seek_time);
+	*(uint32_t*)(address + offset) = time_of_day; offset += sizeof(time_of_day);
 	*(uint32_t*)(address + offset) = time_of_day; offset += sizeof(time_of_day);
 	*(uint32_t*)(address + offset) = json.size(); offset += sizeof(uint32_t);
 

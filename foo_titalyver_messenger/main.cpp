@@ -79,7 +79,7 @@ public:
 		send_data["meta"] = meta_data;
 		Playing = true;
 		double time = static_api_ptr_t<playback_control>()->playback_get_position();
-		Sender.Update(TitalyverMessage::EnumPlaybackEvent::SeekUpdatePlay, time,  send_data.dump());
+		Sender.Update(TitalyverMessage::EnumPlaybackEvent::SeekPlay, time,  send_data.dump());
 	}
 	void on_playback_stop(play_control::t_stop_reason p_reason)
 	{
