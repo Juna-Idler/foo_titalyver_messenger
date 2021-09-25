@@ -13,9 +13,9 @@
 #include "TitalyverMessage.h"
 
 
-DECLARE_COMPONENT_VERSION("Titalyver Messenger Component","0.1",
+DECLARE_COMPONENT_VERSION("Titalyver Messenger Component","0.3",
 	"Send message to Titalyver for viewing lyrics\n"
-	"latest 2021 7/1\n"
+	"latest 2021 9/25\n"
 	"from 2021 6/23?"
 	);
 
@@ -59,10 +59,12 @@ public:
 		for (unsigned i = 0; i < names_count; i++)
 		{
 			t_size values_count = info.meta_enum_value_count(i);
-			const char* name = info.meta_enum_name(i);
+			std::string name = info.meta_enum_name(i);
+			std::transform(name.begin(), name.end(), name.begin(), ::tolower);
 			if (values_count == 1)
 			{
-				meta_data[name] = info.meta_enum_value(i, 0);
+				const char *text = info.meta_enum_value(i, 0);
+				meta_data[name] = text;
 			}
 			else
 			{
@@ -74,8 +76,21 @@ public:
 				meta_data[name] = a;
 			}
 		}
+/*
+		const t_size info_count = info.info_get_count();
+		for (unsigned i = 0; i < info_count; i++)
+		{
+			const char* name = info.info_enum_name(i);
+			const char* text = info.info_enum_value(i);
+			meta_data[name] = text;
+		}
+*/
 		json send_data;
 		send_data["path"] = track->get_path();
+		send_data["title"] = meta_data["title"];
+		send_data["artists"] = meta_data["artist"];
+		send_data["album"] = meta_data["album"];
+		send_data["duration"] = track->get_length();
 		send_data["meta"] = meta_data;
 		Playing = true;
 		double time = static_api_ptr_t<playback_control>()->playback_get_position();
