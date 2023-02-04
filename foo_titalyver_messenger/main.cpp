@@ -11,11 +11,12 @@
 //Žèì‹Æ‚Å‚â‚Á‚Ä‚à‘å‚µ‚Ä•Ï‚ç‚È‚©‚Á‚½‹C‚ª
 
 #include "TitalyverMessage.h"
+#include "WebsocketMessenger.h"
 
 
-DECLARE_COMPONENT_VERSION("Titalyver Messenger Component","0.3",
+DECLARE_COMPONENT_VERSION("Titalyver Messenger Component","0.5",
 	"Send message to Titalyver for viewing lyrics\n"
-	"latest 2021 9/25\n"
+	"latest 2023 2/04\n"
 	"from 2021 6/23?"
 	);
 
@@ -26,28 +27,29 @@ VALIDATE_COMPONENT_FILENAME("foo_titalyver_messenger.dll");
 class LyricsMessenger
 {
 	TitalyverMessenger Sender;
+	WebsocketMessenger GSender;
 
 	bool Playing;
 
 public:
-	LyricsMessenger(void) : Sender(), Playing(false)
+	LyricsMessenger(void) : Sender(), GSender(), Playing(false)
 	{}
 
 public:
 	void Init(void)
 	{
 		Sender.Initialize();
+		GSender.Initialize();
 	}
 	void Quit(void)
 	{
 		Sender.Terminalize();
+		GSender.Terminalize();
 	}
 
 public:
 	void on_playback_new_track(metadb_handle_ptr track)
 	{
-		if (!Sender.IsValid())
-			return;
 		using json = nlohmann::json;
 
 		json meta_data;
@@ -85,30 +87,70 @@ public:
 			meta_data[name] = text;
 		}
 */
-		json send_data;
-		send_data["path"] = track->get_path();
-		send_data["title"] = meta_data["title"];
-		send_data["artists"] = meta_data["artist"];
-		send_data["album"] = meta_data["album"];
-		send_data["duration"] = track->get_length();
-		send_data["meta"] = meta_data;
 		Playing = true;
 		double time = static_api_ptr_t<playback_control>()->playback_get_position();
-		Sender.Update(TitalyverMessage::EnumPlaybackEvent::SeekPlay, time,  send_data.dump());
+		if (Sender.IsValid())
+		{
+			json send_data;
+			send_data["path"] = track->get_path();
+			send_data["title"] = meta_data["title"];
+			send_data["artists"] = meta_data["artist"];
+			send_data["album"] = meta_data["album"];
+			send_data["duration"] = track->get_length();
+			send_data["meta"] = meta_data;
+			Sender.Update(TitalyverMessage::EnumPlaybackEvent::SeekPlay, time, send_data.dump());
+		}
+
+		if (GSender.IsValid())
+		{
+			json ws_data;
+			ws_data["event"] = TitalyverMessage::EnumPlaybackEvent::SeekPlay;
+			ws_data["seek"] = time;
+			ws_data["time"] = WebsocketMessenger::GetDayOfTime();
+			ws_data["path"] = track->get_path();
+			ws_data["title"] = meta_data["title"];
+			ws_data["artists"] = meta_data["artist"];
+			ws_data["album"] = meta_data["album"];
+			ws_data["duration"] = track->get_length();
+			ws_data["meta"] = meta_data;
+
+			GSender.Update(ws_data.dump());
+		}
 	}
 	void on_playback_stop(play_control::t_stop_reason p_reason)
 	{
-		if (!Sender.IsValid())
-			return;
-
 		if (p_reason == play_control::t_stop_reason::stop_reason_starting_another)
 			return;
 		Playing = false;
 		double time = static_api_ptr_t<playback_control>()->playback_get_position();
-		Sender.Update(TitalyverMessage::EnumPlaybackEvent::Stop, time);
+
+		if (Sender.IsValid())
+		{
+			Sender.Update(TitalyverMessage::EnumPlaybackEvent::Stop, time);
+		}
+		if (GSender.IsValid())
+		{
+			nlohmann::json ws_data;
+			ws_data["event"] = TitalyverMessage::EnumPlaybackEvent::Stop;
+			ws_data["seek"] = time;
+			ws_data["time"] = WebsocketMessenger::GetDayOfTime();
+			GSender.Update(ws_data.dump());
+		}
+
+
 	}
 	void on_playback_seek(double time)
 	{
+		if (GSender.IsValid())
+		{
+			nlohmann::json ws_data;
+			ws_data["event"] = Playing ? TitalyverMessage::EnumPlaybackEvent::SeekPlay
+				: TitalyverMessage::EnumPlaybackEvent::SeekStop;
+			ws_data["seek"] = time;
+			ws_data["time"] = WebsocketMessenger::GetDayOfTime();
+			GSender.Update(ws_data.dump());
+		}
+
 		if (!Sender.IsValid())
 			return;
 		Sender.Update(Playing ? TitalyverMessage::EnumPlaybackEvent::SeekPlay
@@ -118,9 +160,19 @@ public:
 
 	void on_playback_pause(bool p_state)
 	{
+		double time = static_api_ptr_t<playback_control>()->playback_get_position();
+		if (GSender.IsValid())
+		{
+			nlohmann::json ws_data;
+			ws_data["event"] = Playing ? TitalyverMessage::EnumPlaybackEvent::SeekPlay
+				: TitalyverMessage::EnumPlaybackEvent::SeekStop;
+			ws_data["seek"] = time;
+			ws_data["time"] = WebsocketMessenger::GetDayOfTime();
+			GSender.Update(ws_data.dump());
+		}
+
 		if (!Sender.IsValid())
 			return;
-		double time = static_api_ptr_t<playback_control>()->playback_get_position();
 
 		Playing = !p_state;
 		Sender.Update(Playing ? TitalyverMessage::EnumPlaybackEvent::SeekPlay
@@ -130,11 +182,22 @@ public:
 
 	void on_playback_starting(play_control::t_track_command p_command,bool p_paused)
 	{
-		if (!Sender.IsValid())
-			return;
+		Playing = !p_paused;
 		double time = static_api_ptr_t<playback_control>()->playback_get_position();
 
-		Playing = !p_paused;
+		if (GSender.IsValid())
+		{
+			nlohmann::json ws_data;
+			ws_data["event"] = Playing ? TitalyverMessage::EnumPlaybackEvent::SeekPlay
+				: TitalyverMessage::EnumPlaybackEvent::SeekStop;
+			ws_data["seek"] = time;
+			ws_data["time"] = WebsocketMessenger::GetDayOfTime();
+			GSender.Update(ws_data.dump());
+		}
+
+		if (!Sender.IsValid())
+			return;
+
 		Sender.Update(Playing ? TitalyverMessage::EnumPlaybackEvent::SeekPlay
 							  : TitalyverMessage::EnumPlaybackEvent::SeekStop,
 					  time);
