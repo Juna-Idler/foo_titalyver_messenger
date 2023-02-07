@@ -29,21 +29,50 @@ void WebsocketMessenger::Terminalize(void)
 
 
 
-bool WebsocketMessenger::Update(const std::string& json)
+bool WebsocketMessenger::Update(EnumPlaybackEvent pb_event, double seek_time)
 {
-	DWORD err = WinHttpWebSocketSend(websocket_handle, WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE, const_cast<char*>(json.c_str()), json.size());
+	nlohmann::json data;
+	data["event"] = pb_event;
+	data["seek"] = seek_time;
+	data["time"] = GetDayOfTime();
+
+	std::string utf8 = data.dump();
+	DWORD err = WinHttpWebSocketSend(websocket_handle, WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE, const_cast<char*>(utf8.c_str()), utf8.size());
 	if (err != NO_ERROR)
 	{
 		Disconnect();
 		if (!Connect())
 			return false;
-		err = WinHttpWebSocketSend(websocket_handle, WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE, const_cast<char*>(json.c_str()), json.size());
+		full_data["event"] = data["event"];
+		full_data["seek"] = data["seek"];
+		full_data["time"] = data["time"];
+		utf8 = full_data.dump();
+		err = WinHttpWebSocketSend(websocket_handle, WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE, const_cast<char*>(utf8.c_str()), utf8.size());
 		if (err != NO_ERROR)
 			return false;
 	}
 	return true;
 }
+bool WebsocketMessenger::UpdateFullData(EnumPlaybackEvent pb_event, double seek_time,const nlohmann::json &json)
+{
+	full_data = json;
+	full_data["event"] = pb_event;
+	full_data["seek"] = seek_time;
+	full_data["time"] = GetDayOfTime();
 
+	std::string utf8 = full_data.dump();
+	DWORD err = WinHttpWebSocketSend(websocket_handle, WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE, const_cast<char*>(utf8.c_str()), utf8.size());
+	if (err != NO_ERROR)
+	{
+		Disconnect();
+		if (!Connect())
+			return false;
+		err = WinHttpWebSocketSend(websocket_handle, WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE, const_cast<char*>(utf8.c_str()), utf8.size());
+		if (err != NO_ERROR)
+			return false;
+	}
+	return true;
+}
 
 WebsocketMessenger::WebsocketMessenger(void)
 {

@@ -3,6 +3,9 @@
 #include <Windows.h>
 #include <string>
 
+#include "json.hpp"
+
+
 //#include <websocket.h>
 #include <winhttp.h>
 
@@ -39,7 +42,9 @@ public:
 	bool Initialize(void);
 	void Terminalize(void);
 
-	bool Update(const std::string& json);
+	bool Update(EnumPlaybackEvent pb_event, double seek_time);
+	bool UpdateFullData(EnumPlaybackEvent pb_event, double seek_time,const nlohmann::json& json);
+
 
 	WebsocketMessenger(void);
 	~WebsocketMessenger();
@@ -49,6 +54,8 @@ private:
 	HINTERNET connect_handle = NULL;
 	HINTERNET websocket_handle = NULL;
 	std::string host = "127.0.0.1";
+
+	nlohmann::json full_data;
 
 	bool Connect();
 	void Disconnect();

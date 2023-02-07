@@ -30,6 +30,8 @@ class LyricsMessenger
 	WebsocketMessenger GSender;
 
 	bool Playing;
+	nlohmann::json ws_data;
+
 
 public:
 	LyricsMessenger(void) : Sender(), GSender(), Playing(false)
@@ -93,9 +95,25 @@ public:
 		{
 			json send_data;
 			send_data["path"] = track->get_path();
-			send_data["title"] = meta_data["title"];
-			send_data["artists"] = meta_data["artist"];
-			send_data["album"] = meta_data["album"];
+			json title = meta_data["title"];
+			send_data["title"] = (title.is_string()) ? title : "";
+
+			json artist = meta_data["artist"];
+			if (artist.is_array())
+				send_data["artists"] = artist;
+			else
+			{
+				json a = json::array();
+				if (artist.is_string())
+					a.push_back(artist);
+				else
+					a.push_back("");
+				send_data["artists"] = a;
+			}
+
+			json album = meta_data["album"];
+			send_data["album"] = (album.is_string()) ? album : "";
+
 			send_data["duration"] = track->get_length();
 			send_data["meta"] = meta_data;
 			Sender.Update(TitalyverMessage::EnumPlaybackEvent::SeekPlay, time, send_data.dump());
@@ -104,17 +122,31 @@ public:
 		if (GSender.IsValid())
 		{
 			json ws_data;
-			ws_data["event"] = TitalyverMessage::EnumPlaybackEvent::SeekPlay;
-			ws_data["seek"] = time;
-			ws_data["time"] = WebsocketMessenger::GetDayOfTime();
 			ws_data["path"] = track->get_path();
-			ws_data["title"] = meta_data["title"];
-			ws_data["artists"] = meta_data["artist"];
-			ws_data["album"] = meta_data["album"];
+			json title = meta_data["title"];
+			ws_data["title"] = (title.is_string()) ? title : "";
+
+			json artist = meta_data["artist"];
+			if (artist.is_array())
+				ws_data["artists"] = artist;
+			else
+			{
+				json a = json::array();
+				if (artist.is_string())
+					a.push_back(artist);
+				else
+					a.push_back("");
+				ws_data["artists"] = a;
+			}
+
+			json album = meta_data["album"];
+			ws_data["album"] = (album.is_string()) ? album : "";
+
 			ws_data["duration"] = track->get_length();
 			ws_data["meta"] = meta_data;
 
-			GSender.Update(ws_data.dump());
+			std::string utf8 = ws_data.dump();
+			GSender.UpdateFullData(WebsocketMessenger::EnumPlaybackEvent::SeekPlay, time, ws_data);
 		}
 	}
 	void on_playback_stop(play_control::t_stop_reason p_reason)
@@ -130,11 +162,7 @@ public:
 		}
 		if (GSender.IsValid())
 		{
-			nlohmann::json ws_data;
-			ws_data["event"] = TitalyverMessage::EnumPlaybackEvent::Stop;
-			ws_data["seek"] = time;
-			ws_data["time"] = WebsocketMessenger::GetDayOfTime();
-			GSender.Update(ws_data.dump());
+			GSender.Update(WebsocketMessenger::EnumPlaybackEvent::Stop,time);
 		}
 
 
@@ -143,12 +171,7 @@ public:
 	{
 		if (GSender.IsValid())
 		{
-			nlohmann::json ws_data;
-			ws_data["event"] = Playing ? TitalyverMessage::EnumPlaybackEvent::SeekPlay
-				: TitalyverMessage::EnumPlaybackEvent::SeekStop;
-			ws_data["seek"] = time;
-			ws_data["time"] = WebsocketMessenger::GetDayOfTime();
-			GSender.Update(ws_data.dump());
+			GSender.Update(Playing ? WebsocketMessenger::EnumPlaybackEvent::SeekPlay : WebsocketMessenger::EnumPlaybackEvent::SeekStop,time);
 		}
 
 		if (!Sender.IsValid())
@@ -160,21 +183,18 @@ public:
 
 	void on_playback_pause(bool p_state)
 	{
+		Playing = !p_state;
 		double time = static_api_ptr_t<playback_control>()->playback_get_position();
+
 		if (GSender.IsValid())
 		{
-			nlohmann::json ws_data;
-			ws_data["event"] = Playing ? TitalyverMessage::EnumPlaybackEvent::SeekPlay
-				: TitalyverMessage::EnumPlaybackEvent::SeekStop;
-			ws_data["seek"] = time;
-			ws_data["time"] = WebsocketMessenger::GetDayOfTime();
-			GSender.Update(ws_data.dump());
+			GSender.Update(Playing ? WebsocketMessenger::EnumPlaybackEvent::SeekPlay
+								   : WebsocketMessenger::EnumPlaybackEvent::SeekStop, time);
 		}
 
 		if (!Sender.IsValid())
 			return;
 
-		Playing = !p_state;
 		Sender.Update(Playing ? TitalyverMessage::EnumPlaybackEvent::SeekPlay
 							  : TitalyverMessage::EnumPlaybackEvent::SeekStop,
 					  time);
@@ -187,12 +207,8 @@ public:
 
 		if (GSender.IsValid())
 		{
-			nlohmann::json ws_data;
-			ws_data["event"] = Playing ? TitalyverMessage::EnumPlaybackEvent::SeekPlay
-				: TitalyverMessage::EnumPlaybackEvent::SeekStop;
-			ws_data["seek"] = time;
-			ws_data["time"] = WebsocketMessenger::GetDayOfTime();
-			GSender.Update(ws_data.dump());
+			GSender.Update(Playing ? WebsocketMessenger::EnumPlaybackEvent::SeekPlay
+								   : WebsocketMessenger::EnumPlaybackEvent::SeekStop, time);
 		}
 
 		if (!Sender.IsValid())
