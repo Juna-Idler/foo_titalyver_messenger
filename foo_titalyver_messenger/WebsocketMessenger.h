@@ -35,7 +35,8 @@ public:
 	static inline uint32_t GetDayOfTime(void)
 	{
 		::SYSTEMTIME time;
-		::GetLocalTime(&time);
+		
+		::GetSystemTime(&time);
 		return ((time.wHour * 60 + time.wMinute) * 60 + time.wSecond) * 1000 + time.wMilliseconds;
 	}
 
