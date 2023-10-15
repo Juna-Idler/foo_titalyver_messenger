@@ -6,15 +6,15 @@
 #include "win32_op.h"
 
 // Separator-in-dialog tool: subclass a static control on init
-class CStaticSeparator : public CContainedWindowT<CStatic>, private CMessageMap {
+class CStaticSeparator : public CWindowImpl<CStaticSeparator, CStatic> {
 public:
-	CStaticSeparator() : CContainedWindowT<CStatic>(this, 0) {}
+	CStaticSeparator() {}
 	BEGIN_MSG_MAP_EX(CSeparator)
 		MSG_WM_PAINT(OnPaint)
 		MSG_WM_SETTEXT(OnSetText)
 	END_MSG_MAP()
 private:
-	int OnSetText(LPCTSTR lpstrText) {
+	int OnSetText(LPCTSTR) {
 		Invalidate();
 		SetMsgHandled(FALSE);
 		return 0;
@@ -40,17 +40,19 @@ private:
 		m_font = font;
 		if (bRedraw) this->Invalidate();
 	}
-	int OnSetText(LPCTSTR lpstrText) {
+	int OnSetText(LPCTSTR) {
 		this->Invalidate();this->SetMsgHandled(FALSE); return 0;
 	}
 	CFontHandle m_font;
 };
 
-
+// CStaticThemed BROKEN WITH DARK MODE, DO NOT USE
+// CStaticMainInstruction = use 1.5x scaled font for non subclassed static instead
+#if 0 
 // Static control subclass with override for theme part used for rendering
-class CStaticThemed : public CContainedWindowT<CStatic>, private CMessageMap {
+class CStaticThemed : public CWindowImpl<CStaticThemed, CStatic> {
 public:
-	CStaticThemed() : CContainedWindowT<CStatic>(this, 0), m_id(), m_fallback() {}
+	CStaticThemed() : m_id(), m_fallback() {}
 	BEGIN_MSG_MAP_EX(CStaticThemed)
 		MSG_WM_PAINT(OnPaint)
 		MSG_WM_THEMECHANGED(OnThemeChanged)
@@ -59,7 +61,7 @@ public:
 
 	void SetThemePart(int id) {m_id = id; if (m_hWnd != NULL) Invalidate();}
 private:
-	int OnSetText(LPCTSTR lpstrText) {
+	int OnSetText(LPCTSTR) {
 		Invalidate();
 		SetMsgHandled(FALSE);
 		return 0;
@@ -78,7 +80,7 @@ class CStaticMainInstruction : public CStaticThemed {
 public:
 	CStaticMainInstruction();
 };
-
+#endif
 
 
 class CSeparator : public CTextControl<CSeparator> {
@@ -93,7 +95,7 @@ public:
 		return _T("foobar2000:separator");
 	}
 private:
-	void OnEnable(BOOL bEnable) {
+	void OnEnable(BOOL) {
 		Invalidate();
 	}
 	void OnPaint(CDCHandle dc);

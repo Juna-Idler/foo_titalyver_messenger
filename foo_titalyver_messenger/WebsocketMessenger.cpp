@@ -37,7 +37,8 @@ bool WebsocketMessenger::Update(EnumPlaybackEvent pb_event, double seek_time)
 	data["time"] = GetDayOfTime();
 
 	std::string utf8 = data.dump();
-	DWORD err = WinHttpWebSocketSend(websocket_handle, WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE, const_cast<char*>(utf8.c_str()), utf8.size());
+	DWORD err = WinHttpWebSocketSend(websocket_handle, WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE,
+			const_cast<char*>(utf8.c_str()), static_cast<DWORD>(utf8.size()));
 	if (err != NO_ERROR)
 	{
 		Disconnect();
@@ -47,7 +48,8 @@ bool WebsocketMessenger::Update(EnumPlaybackEvent pb_event, double seek_time)
 		full_data["seek"] = data["seek"];
 		full_data["time"] = data["time"];
 		utf8 = full_data.dump();
-		err = WinHttpWebSocketSend(websocket_handle, WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE, const_cast<char*>(utf8.c_str()), utf8.size());
+		err = WinHttpWebSocketSend(websocket_handle, WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE,
+			const_cast<char*>(utf8.c_str()), static_cast<DWORD>(utf8.size()));
 		if (err != NO_ERROR)
 			return false;
 	}
@@ -61,13 +63,15 @@ bool WebsocketMessenger::UpdateFullData(EnumPlaybackEvent pb_event, double seek_
 	full_data["time"] = GetDayOfTime();
 
 	std::string utf8 = full_data.dump();
-	DWORD err = WinHttpWebSocketSend(websocket_handle, WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE, const_cast<char*>(utf8.c_str()), utf8.size());
+	DWORD err = WinHttpWebSocketSend(websocket_handle, WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE,
+		const_cast<char*>(utf8.c_str()), static_cast<DWORD>(utf8.size()));
 	if (err != NO_ERROR)
 	{
 		Disconnect();
 		if (!Connect())
 			return false;
-		err = WinHttpWebSocketSend(websocket_handle, WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE, const_cast<char*>(utf8.c_str()), utf8.size());
+		err = WinHttpWebSocketSend(websocket_handle, WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE,
+			const_cast<char*>(utf8.c_str()), static_cast<DWORD>(utf8.size()));
 		if (err != NO_ERROR)
 			return false;
 	}

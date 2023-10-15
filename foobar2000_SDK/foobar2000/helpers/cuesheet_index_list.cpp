@@ -1,5 +1,7 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "cuesheet_index_list.h"
+
+#include "cue_parser.h" // exception_bad_cuesheet
 
 #ifndef _MSC_VER
 #define sprintf_s sprintf
@@ -32,7 +34,7 @@ void t_cuesheet_index_list::to_infos(file_info & p_out) const
 	for(unsigned n=2;n<count;n++)
 	{
 		char namebuffer[16];
-		sprintf_s(namebuffer,"index %02u",n);
+		snprintf(namebuffer, std::size(namebuffer), "index %02u",n);
 		double position = m_positions[n] - base;
 		if (position > 0)
 			p_out.info_set(namebuffer,cuesheet_format_index_time(position));
@@ -61,7 +63,7 @@ bool t_cuesheet_index_list::from_infos(file_info const & p_in,double p_base)
 	for(unsigned n=2;n<count;n++)
 	{
 		char namebuffer[16];
-		sprintf_s(namebuffer,"index %02u",n);
+		snprintf(namebuffer, std::size(namebuffer),"index %02u",n);
 		double temp;
 		if (parse_value(p_in.info_get(namebuffer),temp)) {
 			m_positions[n] = temp + p_base; found = true;
@@ -105,10 +107,12 @@ unsigned cuesheet_parse_index_time_ticks_e(const char * p_string,t_size p_length
 	{
 		if (p_string[ptr] == ':')
 		{
-			if (splitptr >= 2) throw std::runtime_error("invalid INDEX time syntax");
+			if (splitptr >= 2) 
+				pfc::throw_exception_with_message< cue_parser::exception_bad_cuesheet >("invalid INDEX time syntax");
 			splitmarks[splitptr++] = ptr;
 		}
-		else if (!pfc::char_is_numeric(p_string[ptr])) throw std::runtime_error("invalid INDEX time syntax");
+		else if (!pfc::char_is_numeric(p_string[ptr])) 
+			pfc::throw_exception_with_message< cue_parser::exception_bad_cuesheet >("invalid INDEX time syntax");
 	}
 	
 	t_size minutes_base = 0, minutes_length = 0, seconds_base = 0, seconds_length = 0, frames_base = 0, frames_length = 0;

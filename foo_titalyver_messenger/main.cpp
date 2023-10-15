@@ -1,8 +1,8 @@
 //#include "stdafx.h"
 
-#include "../foobar2000_SDK/foobar2000/SDK/foobar2000.h"
-#include "../foobar2000_SDK/foobar2000/helpers/helpers.h"
-//#include "../foobar2000_SDK/pfc/pfc.h"
+#include <SDK/foobar2000.h>
+#include <helpers/helpers.h>
+//#include <pfc/pfc.h>
 
 
 #include "json.hpp"

@@ -2,6 +2,7 @@
 #include <functional>
 #include "event_logger.h"
 #include "audio_chunk.h"
+#include "album_art.h"
 
 PFC_DECLARE_EXCEPTION(exception_tagging_unsupported, exception_io_data, "Tagging of this file format is not supported")
 
@@ -20,8 +21,8 @@ enum {
 //! Instantiating: see input_entry.\n
 //! Implementing: see input_impl.
 
-class NOVTABLE input_info_reader : public service_base
-{
+class NOVTABLE input_info_reader : public service_base {
+	FB2K_MAKE_SERVICE_INTERFACE(input_info_reader, service_base);
 public:
 	//! Retrieves count of subsongs in the file. 1 for non-multisubsong-enabled inputs.
 	//! Note: multi-subsong handling is disabled for remote files (see: filesystem::is_remote) for performance reasons. Remote files are always assumed to be single-subsong, with null index.
@@ -40,7 +41,15 @@ public:
 	//! Retrieves file stats. Equivalent to calling get_stats() on file object.
 	virtual t_filestats get_file_stats(abort_callback & p_abort) = 0;
 
-	FB2K_MAKE_SERVICE_INTERFACE(input_info_reader,service_base);
+	t_filestats2 get_stats2_(const char* fallbackPath, uint32_t f, abort_callback& a);
+};
+
+class NOVTABLE input_info_reader_v2 : public input_info_reader {
+	FB2K_MAKE_SERVICE_INTERFACE(input_info_reader_v2, input_info_reader);
+public:
+	virtual t_filestats2 get_stats2(uint32_t f, abort_callback& a) = 0;
+
+	t_filestats get_file_stats(abort_callback& a) override;
 };
 
 //! Class providing interface for retrieval of PCM audio data from files.\n
@@ -88,8 +97,7 @@ public:
 	//! @returns false to keep old info, or true to indicate that changes have been made to p_info and those should be displayed.
 	virtual bool get_dynamic_info_track(file_info & p_out, double & p_timestamp_delta) = 0;
 
-	//! Called from playback thread before sleeping.
-	//! @param p_abort abort_callback object signaling user aborting the operation.
+	//! Obsolete, do not use, do not rely on.
 	virtual void on_idle(abort_callback & p_abort) = 0;
 
 
@@ -145,15 +153,9 @@ public:
 	//! Return 1 if position was written to arg2, 0 if n/a.
 	static const GUID query_position;
 
-    struct continue_stream_t {
-        file::ptr reader;
-        const char * path;
-    };
-    //! Tells the decoder to continue decoding from another URL, without flushing etc. Mainly used by HLS streams.
-    //! arg2: continue_stream_t
-    //! Return 1 to acknowledge, 0 if unsupported.
-    //! A call to decode_initialize() will follow if you return 1; perform actual file open from there.
-    static const GUID continue_stream;
+    //! Asks whether it is OK to externally rewrite tags on this file without closing and reopening the decoder. \n
+	//! Return 1 if the decoder reads all relevant content in open() without leaving the file open afterwards, 0 otherwise (the default).
+	static const GUID is_tag_write_safe;
 };
 
 //! Class providing interface for writing metadata and replaygain info to files. Also see: file_info. \n
@@ -264,6 +266,10 @@ public:
 	
 	static uint32_t g_flags_for_path( const char * pathFor, uint32_t mask = UINT32_MAX );
 	static uint32_t g_flags_for_content_type( const char * ct, uint32_t mask = UINT32_MAX );
+
+	GUID get_guid_();
+	const char * get_name_();
+	static input_entry::ptr g_find_by_guid( const GUID & );
 };
 
 //! \since 1.4
@@ -354,6 +360,15 @@ public:
 	//! If not set by user, 0xFFFFFFFF will be returned and the default stream should be presented. \n
 	//! @param guid GUID of the input asking for the stream.
 	virtual uint32_t select_stream( const GUID & guid, const char * path ) = 0;
+};
+
+//! \since 2.0
+class input_stream_selector_v2 : public input_stream_selector {
+	FB2K_MAKE_SERVICE_COREAPI_EXTENSION(input_stream_selector_v2, input_stream_selector);
+public:
+	//! Allows components to present their own user interface to alter stream preference settings.
+	//! Parameters same as select_stream() and its return value.
+	virtual void set_user_preference(const GUID& guid, const char* path, uint32_t index) = 0;
 };
 
 //! \since 1.4
@@ -469,8 +484,6 @@ public:
 	virtual void filter_dynamic_info_track( file_info & info ) = 0;
 };
 
-class album_art_data;
-
 //! \since 1.5
 //! Extended input_info_filter.
 class input_info_filter_v2 : public input_info_filter {
@@ -542,4 +555,17 @@ public:
 
 typedef input_info_writer_v2 input_info_writer_vhighest;
 typedef input_decoder_v4 input_decoder_vhighest;
-typedef input_info_reader input_info_reader_vhighest;
+typedef input_info_reader_v2 input_info_reader_vhighest;
+
+typedef input_info_writer input_info_writer_vrequired;
+typedef input_decoder input_decoder_vrequired;
+typedef input_info_reader_v2 input_info_reader_vrequired;
+
+//! \since 2.0
+class input_entry_v4 : public input_entry_v3 {
+	FB2K_MAKE_SERVICE_INTERFACE(input_entry_v4, input_entry_v3)
+public:
+	//! Fallback method for detecting renamed files. \n
+	//! This gets called after normal means of opening this file failed.
+	virtual bool fallback_is_our_payload(const void* bytes, size_t bytesAvail, t_filesize bytesWhole) = 0;
+};

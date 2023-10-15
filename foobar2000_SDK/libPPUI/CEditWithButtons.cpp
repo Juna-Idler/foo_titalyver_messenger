@@ -23,6 +23,7 @@ void CEditWithButtons::AddClearButton(const wchar_t * clearVal, bool bHandleEsc)
 }
 
 void CEditWithButtons::AddButton(const wchar_t * str, handler_t handler, condition_t condition, const wchar_t * drawAlternateText) {
+	PFC_ASSERT(GetStyle() & WS_CLIPCHILDREN);
 	Button_t btn;
 	btn.handler = handler;
 	btn.title = str;
@@ -130,8 +131,7 @@ void CEditWithButtons::Layout(CSize size, CFontHandle fontSetMe) {
 		}
 
 		if (iter->wnd == NULL) {
-			auto b = std::make_shared< CButtonLite >();
-			iter->buttonImpl = b;
+			auto* b = &iter->wnd;
 			b->Create(*this, NULL, iter->title.c_str());
 			if (iter->titleDraw.length() > 0) b->DrawAlternateText(iter->titleDraw.c_str());
 			CFontHandle font = fontSetMe;
@@ -148,7 +148,6 @@ void CEditWithButtons::Layout(CSize size, CFontHandle fontSetMe) {
 				return ButtonWantTab(wnd);
 			};
 			if (!IsWindowEnabled()) b->EnableWindow(FALSE);
-			iter->wnd = *b;
 		} else if (fontSetMe) {
 			iter->wnd.SetFont(fontSetMe);
 		}
@@ -172,7 +171,26 @@ void CEditWithButtons::Layout(CSize size, CFontHandle fontSetMe) {
 }
 
 unsigned CEditWithButtons::MeasureButton(Button_t const & button) {
+	if (m_fixedWidthAuto && m_fixedWidth == 0) {
+		CWindowDC dc(*this);
+		SelectObjectScope fontScope(dc, GetFont());
+		SIZE sz = {};
+		WIN32_OP_D( dc.GetTextExtent(L"#", 1, &sz) );
+		m_fixedWidth = MulDiv(sz.cx, 3, 2);
+	}
 	if (m_fixedWidth != 0) return m_fixedWidth;
 
-	return button.buttonImpl->Measure();
+	return button.wnd.Measure();
+}
+
+void CEditWithButtons::OnSetFont(CFontHandle font, BOOL bRedraw) {
+	(void)bRedraw;
+
+	if ( m_fixedWidthAuto ) m_fixedWidth = 0; // require re-calculation
+
+	DefWindowProc();
+	CRect rc;
+	if (GetClientRect(&rc)) {
+		Layout(rc.Size(), font);
+	}
 }

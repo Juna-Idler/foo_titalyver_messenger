@@ -1,20 +1,25 @@
-#ifndef _WINDOWS
-#error PORTME
-#endif
+#pragma once
+
 
 //! Entrypoint service for user interface modules. Implement when registering an UI module. Do not call existing implementations; only core enumerates / dispatches calls. To control UI behaviors from other components, use ui_control API. \n
 //! Use user_interface_factory_t<> to register, e.g static user_interface_factory_t<myclass> g_myclass_factory;
 class NOVTABLE user_interface : public service_base {
 	FB2K_MAKE_SERVICE_INTERFACE_ENTRYPOINT(user_interface);
 public:
+#ifdef _WIN32
 	//!HookProc usage: \n
 	//! in your windowproc, call HookProc first, and if it returns true, return LRESULT value it passed to you
 	typedef BOOL (WINAPI * HookProc_t)(HWND wnd,UINT msg,WPARAM wp,LPARAM lp,LRESULT * ret);
-
+#endif
 	//! Retrieves name (UTF-8 null-terminated string) of the UI module.
 	virtual const char * get_name()=0;
-	//! Initializes the UI module - creates the main app window, etc. Failure should be signaled by appropriate exception (std::exception or a derivative).
-	virtual HWND init(HookProc_t hook)=0;
+    //! Initializes the UI module - creates the main app window, etc. Failure should be signaled by appropriate exception (std::exception or a derivative). \n
+    //! Mac OS: return NSWindow cast to hwnd_t
+#ifdef _WIN32
+    virtual HWND init(HookProc_t hook)=0;
+#else
+    virtual fb2k::hwnd_t init() = 0;
+#endif
 	//! Deinitializes the UI module - destroys the main app window, etc.
 	virtual void shutdown()=0;
 	//! Activates main app window.
@@ -31,7 +36,7 @@ public:
 	//! Disables statusbar text override.
 	virtual void revert_statusbar_text() = 0;
 
-	//! Shows now-playing item somehow (e.g. system notification area popup).
+    //! Shows now-playing item somehow (e.g. system notification area popup).
 	virtual void show_now_playing() = 0;
 
 	static bool g_find(service_ptr_t<user_interface> & p_out,const GUID & p_guid);
@@ -48,6 +53,7 @@ public:
 	//! Allows the core to ask the UI module about a specific feature.
 	virtual bool query_capability( const GUID & cap ) = 0;
 
+#ifdef _WIN32
 	//! Suppress core's shellhook window for intercepting systemwide WM_APPCOMMAND? \n
 	//! Recommended: false - return true only if your UI does this on its own.
 	static const GUID cap_suppress_core_shellhook;
@@ -56,7 +62,18 @@ public:
 	//! Note that cap_suppress_core_shellhook is queried first, as core can't use UVC if this UI does global WM_APPCOMMAND handling on its own. \n
 	//! Returning true from cap_suppress_core_shellhook implies the same from cap_suppress_core_uvc.
 	static const GUID cap_suppress_core_uvc;
+#endif
 };
+
+#ifdef _WIN32
+class ui_config_manager;
+//! \since 2.0
+class NOVTABLE user_interface_v3 : public user_interface_v2 {
+	FB2K_MAKE_SERVICE_INTERFACE(user_interface_v3, user_interface_v2);
+public:
+	virtual service_ptr_t< ui_config_manager > get_config_manager() = 0;
+};
+#endif
 
 //! Interface class allowing you to override UI statusbar text. There may be multiple callers trying to override statusbar text; backend decides which one succeeds so you will not always get what you want. Statusbar text override is automatically cancelled when the object is released.\n
 //! Use ui_control::override_status_text_create() to instantiate.
@@ -83,11 +100,13 @@ public:
 	virtual void activate()=0;
 	//! Hides/minimizese main UI.
 	virtual void hide()=0;
+    
+#ifdef _WIN32
 	//! Retrieves main GUI icon, to use as window icon etc. Returned handle does not need to be freed.
-	virtual HICON get_main_icon()=0;
+	virtual fb2k::hicon_t get_main_icon()=0;
 	//! Loads main GUI icon, version with specified width/height. Returned handle needs to be freed with DestroyIcon when you are done using it.
-	virtual HICON load_main_icon(unsigned width,unsigned height) = 0;
-
+	virtual fb2k::hicon_t load_main_icon(unsigned width,unsigned height) = 0;
+#endif
 	//! Activates preferences dialog and navigates to specified page. See also: preference_page API. \n
 	//! Since foobar2000 1.5, this can be used to show advanced preferences branches or settings, just pass GUID of the advconfig_entry you wish to show.
 	virtual void show_preferences(const GUID & p_page) = 0;
@@ -100,16 +119,15 @@ public:
 
 typedef ui_status_text_override ui_status_host;
 
-#if FOOBAR2000_TARGET_VERSION >= 80
 //! \since 1.5
 class NOVTABLE ui_control_v2 : public ui_control {
 	FB2K_MAKE_SERVICE_COREAPI_EXTENSION(ui_control_v2, ui_control)
 public:
-	virtual void register_status_host(HWND wndFor, ui_status_host::ptr obj) = 0;
-	virtual void unregister_status_host(HWND wndFor) = 0;
+	virtual void register_status_host(fb2k::hwnd_t wndFor, ui_status_host::ptr obj) = 0;
+	virtual void unregister_status_host(fb2k::hwnd_t wndFor) = 0;
 };
-#endif // if FOOBAR2000_TARGET_VERSION >= 80
 
+#ifdef _WIN32
 //! Service called from the UI when some object is dropped into the UI. Usable for modifying drag&drop behaviors such as adding custom handlers for object types other than supported media files.\n
 //! Implement where needed; use ui_drop_item_callback_factory_t<> template to register, e.g. static ui_drop_item_callback_factory_t<myclass> g_myclass_factory.
 class NOVTABLE ui_drop_item_callback : public service_base {
@@ -130,7 +148,7 @@ public:
 
 template<class T>
 class ui_drop_item_callback_factory_t : public service_factory_single_t<T> {};
-
+#endif
 
 class ui_selection_callback;
 
@@ -194,6 +212,14 @@ public:
 	virtual void get_selection(metadb_handle_list_ref out, t_uint32 flags) = 0;
 	virtual GUID get_selection_type(t_uint32 flags) = 0;
 	virtual void register_callback(ui_selection_callback * callback, t_uint32 flags) = 0;
+};
+
+//! \since 2.0
+class NOVTABLE ui_selection_manager_v3 : public ui_selection_manager_v2 {
+	FB2K_MAKE_SERVICE_COREAPI_EXTENSION(ui_selection_manager_v3, ui_selection_manager_v2)
+public:
+	virtual void add_callback_scope(ui_selection_callback* cb,const GUID & scope) = 0;
+	virtual bool is_scope_watched(const GUID& scope) = 0;
 };
 
 class ui_selection_callback {

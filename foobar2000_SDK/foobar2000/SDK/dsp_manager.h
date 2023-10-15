@@ -1,11 +1,13 @@
 #pragma once
 
 #ifdef FOOBAR2000_HAVE_DSP
+#include "dsp.h"
 
 //! Helper class for running audio data through a DSP chain.
 class dsp_manager {
 public:
-	dsp_manager() {}
+    //! @param creationFlags See dsp_entry::flag_*
+	dsp_manager(unsigned creationFlags = 0) : m_creationFlags(creationFlags) {}
 
 	//! Alters the DSP chain configuration. Should be called before the first run() to set the configuration but can be also called anytime later between run() calls.
 	void set_config( const dsp_chain_config & p_data );
@@ -23,6 +25,7 @@ public:
 	bool need_track_change_mark() const;
 
 private:
+    const unsigned m_creationFlags;
 	struct t_dsp_chain_entry {
 		service_ptr_t<dsp> m_dsp;
 		dsp_preset_impl m_preset;
@@ -50,22 +53,23 @@ public:
 	//! Changes current core playback DSP settings.
 	virtual void set_core_settings(const dsp_chain_config & p_data) = 0;
 	
+#ifdef _WIN32
 	//! Runs a modal DSP settings dialog.
 	//! @param p_data DSP chain configuration to edit - contains initial configuration to put in the dialog when called, receives the new configuration on successful edit.
 	//! @returns True when user approved DSP configuration changes (pressed the "OK" button), false when the user cancelled them ("Cancel" button).
-	virtual bool configure_popup(dsp_chain_config & p_data,HWND p_parent,const char * p_title) = 0;
+	virtual bool configure_popup(dsp_chain_config & p_data,fb2k::hwnd_t p_parent,const char * p_title) = 0;
 
 	//! Spawns an embedded DSP settings dialog. 
 	//! @param p_initdata Initial DSP chain configuration to put in the dialog.
 	//! @param p_parent Parent window to contain the embedded dialog.
 	//! @param p_id Control ID of the embedded dialog. The parent window will receive a WM_COMMAND with BN_CLICKED and this identifier when user changes settings in the embedded dialog.
 	//! @param p_from_modal Must be set to true when the parent window is a modal dialog, false otherwise.
-	virtual HWND configure_embedded(const dsp_chain_config & p_initdata,HWND p_parent,unsigned p_id,bool p_from_modal) = 0;
+	virtual fb2k::hwnd_t configure_embedded(const dsp_chain_config & p_initdata,fb2k::hwnd_t p_parent,unsigned p_id,bool p_from_modal) = 0;
 	//! Retrieves current settings from an embedded DSP settings dialog. See also: configure_embedded().
-	virtual void configure_embedded_retrieve(HWND wnd,dsp_chain_config & p_data) = 0;
+	virtual void configure_embedded_retrieve(fb2k::hwnd_t wnd,dsp_chain_config & p_data) = 0;
 	//! Changes current settings in an embedded DSP settings dialog. See also: configure_embedded().
-	virtual void configure_embedded_change(HWND wnd,const dsp_chain_config & p_data) = 0;
-
+	virtual void configure_embedded_change(fb2k::hwnd_t wnd,const dsp_chain_config & p_data) = 0;
+#endif
 
 	enum default_insert_t {
 		default_insert_last,

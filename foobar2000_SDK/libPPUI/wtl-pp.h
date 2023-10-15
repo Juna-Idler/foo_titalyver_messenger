@@ -6,6 +6,10 @@
 
 #define ATLASSERT_SUCCESS(X) {auto RetVal = (X); ATLASSERT( RetVal ); }
 
+#ifdef SubclassWindow // mitigate windowsx.h clash
+#undef SubclassWindow
+#endif
+
 class NoRedrawScope {
 public:
 	NoRedrawScope(HWND p_wnd) throw() : m_wnd(p_wnd) {
@@ -20,7 +24,7 @@ private:
 
 class NoRedrawScopeEx {
 public:
-	NoRedrawScopeEx(HWND p_wnd) throw() : m_wnd(p_wnd), m_active() {
+	NoRedrawScopeEx(HWND p_wnd) throw() : m_wnd(p_wnd) {
 		if (m_wnd.IsWindowVisible()) {
 			m_active = true;
 			m_wnd.SetRedraw(FALSE);
@@ -32,11 +36,55 @@ public:
 			m_wnd.RedrawWindow(NULL,NULL,RDW_INVALIDATE|RDW_ERASE|RDW_ALLCHILDREN);
 		}
 	}
+	NoRedrawScopeEx(const NoRedrawScopeEx&) = delete;
+	void operator=(const NoRedrawScopeEx&) = delete;
 private:
-	bool m_active;
+	bool m_active = false;
 	CWindow m_wnd;
 };
 
+class NoRedrawControl {
+public:
+	CWindow m_wnd;
+
+	void operator++() {
+		m_count++;
+		if (m_wnd.IsWindowVisible()) {
+			m_active = true;
+			m_wnd.SetRedraw(FALSE);
+		}
+	}
+	void operator--() {
+		if (--m_count == 0 && m_active) {
+			m_wnd.SetRedraw(TRUE);
+			m_wnd.RedrawWindow(NULL, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
+			m_active = false;
+		}
+	}
+	int m_count = 0;
+	bool m_active = false;
+
+	NoRedrawControl(HWND wnd = NULL) : m_wnd(wnd) {}
+	void operator=(const NoRedrawControl&) = delete;
+	NoRedrawControl(const NoRedrawControl&) = delete;
+};
+
+LRESULT RelayEraseBkgnd(HWND p_from, HWND p_to, HDC p_dc);
+void InjectParentEraseHandler(HWND);
+void InjectEraseHandler(HWND, HWND sendTo);
+void InjectParentCtlColorHandler(HWND);
+
+#define MSG_WM_ERASEBKGND_PARENT() \
+	if (uMsg == WM_ERASEBKGND) { \
+		lResult = ::RelayEraseBkgnd(hWnd, ::GetParent(hWnd), (HDC)wParam); \
+		return TRUE; \
+	}
+
+#define MSG_WM_ERASEBKGND_TO(wndTarget) \
+	if (uMsg == WM_ERASEBKGND) { \
+		lResult = ::RelayEraseBkgnd(hWnd, wndTarget, (HDC)wParam); \
+		return TRUE; \
+	}
 
 #define MSG_WM_TIMER_EX(timerId, func) \
 	if (uMsg == WM_TIMER && (UINT_PTR)wParam == timerId) \
@@ -79,14 +127,14 @@ private:
 	}
 
 
-
+// Obsolete, use CImageListManaged instead
 class CImageListContainer : public CImageList {
 public:
 	CImageListContainer() {}
 	~CImageListContainer() {Destroy();}
-private:
-	const CImageListContainer & operator=(const CImageListContainer&);
-	CImageListContainer(const CImageListContainer&);
+
+	void operator=(const CImageListContainer&) = delete;
+	CImageListContainer(const CImageListContainer&) = delete;
 };
 
 
@@ -124,14 +172,14 @@ public:
 	CCheckBox & operator=(HWND wnd) {m_hWnd = wnd; return *this; }
 };
 
-class CEditPPHooks : public CContainedWindowT<CEdit>, private CMessageMap {
+class CEditPPHooks : public CWindowImpl<CEditPPHooks, CEdit> {
 public:
-	bool HandleCtrlA = true, NoEscSteal = false, NoEnterSteal = false;
+	bool HandleCtrlA = true, NoEscSteal = false, NoEnterSteal = false, WantAllKeys = false;
 
 	std::function<void ()> onEnterKey;
 	std::function<void ()> onEscKey;
 	
-	CEditPPHooks(CMessageMap * hookMM = nullptr, int hookMMID = 0) : CContainedWindowT<CEdit>(this, 0), m_hookMM(hookMM), m_hookMMID(hookMMID) {}
+	CEditPPHooks(CMessageMap * hookMM = nullptr, int hookMMID = 0) : m_hookMM(hookMM), m_hookMMID(hookMMID) {}
 
 	BEGIN_MSG_MAP_EX(CEditPPHooks)
 		MSG_WM_KEYDOWN(OnKeyDown)
@@ -146,35 +194,13 @@ public:
 
 	END_MSG_MAP()
 
-	static void DeleteLastWord( CEdit wnd ) {
-		if ( wnd.GetWindowLong(GWL_STYLE) & ES_READONLY ) return;
-		int len = wnd.GetWindowTextLength();
-		if ( len <= 0 ) return;
-		TCHAR * buffer = new TCHAR [ len + 1 ];
-		if ( wnd.GetWindowText( buffer, len + 1 ) <= 0 ) {
-			delete[] buffer;
-			return;
-		}
-		buffer[len] = 0;
-		int selStart = len, selEnd = len;
-		wnd.GetSel(selStart, selEnd);
-		if ( selStart < 0 || selStart > len ) selStart = len; // sanity
-		if ( selEnd < selStart ) selEnd = selStart; // sanity
-		int work = selStart;
-		if ( work == selEnd ) {
-			// Only do our stuff if there is nothing yet selected. Otherwise first delete selection.
-			while( work > 0 && isWordDelimiter(buffer[work-1]) ) --work;
-			while( work > 0 && !isWordDelimiter(buffer[work-1] ) ) --work;
-		}
-		delete[] buffer;
-		if ( selEnd > work ) {
-			wnd.SetSel(work, selEnd, TRUE );
-			wnd.ReplaceSel( TEXT(""), TRUE );
-		}
-	}
+	static void DeleteLastWord( CEdit wnd, bool bForward = false );
 private:
-	static bool isWordDelimiter( TCHAR c ) {
-		return (unsigned) c <= ' ' || c == ',' || c == '.' || c == ';' || c == ':';
+	static bool isSpecial( wchar_t c ) {
+		return (unsigned) c < ' ';
+	}
+	static bool isWordDelimiter( wchar_t c ) {
+		return c == ' ' || c == ',' || c == '.' || c == ';' || c == ':';
 	}
 	void OnChar(UINT nChar, UINT, UINT nFlags) {
 		if (m_suppressChar != 0) {
@@ -187,6 +213,7 @@ private:
 		SetMsgHandled(FALSE);
 	}
 	void OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags) {
+		(void)nRepCnt;
 		m_suppressChar = 0;
 		m_suppressScanCode = 0;
 		if (HandleCtrlA) {
@@ -202,6 +229,12 @@ private:
 					DeleteLastWord( *this ) ; return;
 				}
 			}
+			if ( nChar == VK_DELETE ) {
+				if (GetHotkeyModifierFlags() == MOD_CONTROL) {
+					m_suppressScanCode = nFlags & 0xFF;
+					DeleteLastWord( *this, true ) ; return;
+				}
+			}
 			if ( nChar == VK_RETURN && onEnterKey ) {
 				m_suppressChar = nChar;
 				onEnterKey(); return;
@@ -214,6 +247,7 @@ private:
 		SetMsgHandled(FALSE);
 	}
 	UINT OnEditGetDlgCode(LPMSG lpMsg) {
+		if (WantAllKeys) return DLGC_WANTALLKEYS;
 		if (lpMsg == NULL) {
 			SetMsgHandled(FALSE); return 0;
 		} else {
@@ -248,60 +282,60 @@ private:
 };
 
 
-class CEditNoEscSteal : public CContainedWindowT<CEdit>, private CMessageMap {
+class CEditNoEscSteal : public CEdit {
 public:
-	CEditNoEscSteal() : CContainedWindowT<CEdit>(this, 0) {}
-	BEGIN_MSG_MAP_EX(CEditNoEscSteal)
-		MSG_WM_GETDLGCODE(OnEditGetDlgCode)
-	END_MSG_MAP()
+	void SubclassWindow(HWND wnd) {
+		this->Attach(wnd);
+		SubclassThisWindow(wnd);
+	}
+	static void SubclassThisWindow(HWND wnd) {
+		SetWindowSubclass(wnd, proc, 0, 0);
+	}
 private:
-	UINT OnEditGetDlgCode(LPMSG lpMsg) {
-		if (lpMsg == NULL) {
-			SetMsgHandled(FALSE); return 0;
-		} else {
-			switch(lpMsg->message) {
+	static LRESULT CALLBACK proc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR, DWORD_PTR) {
+		if ( uMsg == WM_GETDLGCODE ) {
+			auto lpMsg = reinterpret_cast<LPMSG>(lParam);
+			if (lpMsg != NULL) {
+				switch(lpMsg->message) {
 				case WM_KEYDOWN:
 				case WM_SYSKEYDOWN:
 					switch(lpMsg->wParam) {
-						case VK_ESCAPE:
-							return 0;
-						default:
-							SetMsgHandled(FALSE); return 0;
+					case VK_ESCAPE:
+						return 0;
 					}
-				default:
-					SetMsgHandled(FALSE); return 0;
-
+				}
 			}
 		}
+		return DefSubclassProc(hWnd, uMsg, wParam, lParam);
 	}
 };
 
-class CEditNoEnterEscSteal : public CContainedWindowT<CEdit>, private CMessageMap {
+class CEditNoEnterEscSteal : public CEdit {
 public:
-	CEditNoEnterEscSteal() : CContainedWindowT<CEdit>(this, 0) {}
-	BEGIN_MSG_MAP_EX(CEditNoEscSteal)
-		MSG_WM_GETDLGCODE(OnEditGetDlgCode)
-	END_MSG_MAP()
+	void SubclassWindow(HWND wnd) {
+		this->Attach(wnd);
+		SubclassThisWindow(wnd);
+	}
+	static void SubclassThisWindow(HWND wnd) {
+		SetWindowSubclass(wnd, proc, 0, 0);
+	}
 private:
-	UINT OnEditGetDlgCode(LPMSG lpMsg) {
-		if (lpMsg == NULL) {
-			SetMsgHandled(FALSE); return 0;
-		} else {
-			switch(lpMsg->message) {
+	static LRESULT CALLBACK proc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR, DWORD_PTR) {
+		if ( uMsg == WM_GETDLGCODE ) {
+			auto lpMsg = reinterpret_cast<LPMSG>(lParam);
+			if (lpMsg != NULL) {
+				switch(lpMsg->message) {
 				case WM_KEYDOWN:
 				case WM_SYSKEYDOWN:
 					switch(lpMsg->wParam) {
-						case VK_ESCAPE:
-						case VK_RETURN:
-							return 0;
-						default:
-							SetMsgHandled(FALSE); return 0;
+					case VK_RETURN:
+					case VK_ESCAPE:
+						return 0;
 					}
-				default:
-					SetMsgHandled(FALSE); return 0;
-
+				}
 			}
 		}
+		return DefSubclassProc(hWnd, uMsg, wParam, lParam);
 	}
 };
 
@@ -381,23 +415,9 @@ private:
 
 class CSRWlock {
 public:
-	CSRWlock() : theLock() {
-#if _WIN32_WINNT < 0x600
-		auto dll = GetModuleHandle(_T("kernel32"));
-		Bind(AcquireSRWLockExclusive, dll, "AcquireSRWLockExclusive");
-		Bind(AcquireSRWLockShared, dll, "AcquireSRWLockShared");
-		Bind(ReleaseSRWLockExclusive, dll, "ReleaseSRWLockExclusive");
-		Bind(ReleaseSRWLockShared, dll, "ReleaseSRWLockShared");
-#endif
-	}
+	CSRWlock() { }
 	
-	bool HaveAPI() {
-#if _WIN32_WINNT < 0x600
-		return AcquireSRWLockExclusive != NULL;
-#else
-		return true;
-#endif
-	}
+	static bool HaveAPI() { return true; }
 
 	void EnterShared() {
 		AcquireSRWLockShared( & theLock );
@@ -416,59 +436,5 @@ private:
 	CSRWlock(const CSRWlock&) = delete;
 	void operator=(const CSRWlock&) = delete;
 
-	SRWLOCK theLock;
-#if _WIN32_WINNT < 0x600
-	template<typename func_t> static void Bind(func_t & func, HMODULE dll, const char * name) {
-		func = reinterpret_cast<func_t>(GetProcAddress( dll, name ) );
-	}
-
-	VOID (WINAPI * AcquireSRWLockExclusive)(PSRWLOCK SRWLock);
-	VOID (WINAPI * AcquireSRWLockShared)(PSRWLOCK SRWLock);
-	VOID (WINAPI * ReleaseSRWLockExclusive)(PSRWLOCK SRWLock);
-	VOID (WINAPI * ReleaseSRWLockShared)(PSRWLOCK SRWLock);
-#endif
-};
-
-#if _WIN32_WINNT < 0x600
-class CSRWorCS {
-public:
-	CSRWorCS() : cs() {
-		if (!srw.HaveAPI()) InitializeCriticalSection(&cs);
-	}
-	~CSRWorCS() {
-		if (!srw.HaveAPI()) DeleteCriticalSection(& cs );
-	}
-	void EnterShared() {
-		if (srw.HaveAPI()) srw.EnterShared();
-		else EnterCriticalSection(&cs);
-	}
-	void EnterExclusive() {
-		if (srw.HaveAPI()) srw.EnterExclusive();
-		else EnterCriticalSection(&cs);
-	}
-	void LeaveShared() {
-		if (srw.HaveAPI()) srw.LeaveShared();
-		else LeaveCriticalSection(&cs);
-	}
-	void LeaveExclusive() {
-		if (srw.HaveAPI()) srw.LeaveExclusive();
-		else LeaveCriticalSection(&cs);
-	}
-private:
-	CSRWorCS(const CSRWorCS&) = delete;
-	void operator=(const CSRWorCS&) = delete;
-
-	CSRWlock srw;
-	CRITICAL_SECTION cs;
-};
-#else
-typedef CSRWlock CSRWorCS;
-#endif
-
-
-template<typename TBase> class CContainedWindowSimpleT : public CContainedWindowT<TBase>, public CMessageMap {
-public:
-	CContainedWindowSimpleT() : CContainedWindowT<TBase>(this) {}
-	BEGIN_MSG_MAP(CContainedWindowSimpleT)
-	END_MSG_MAP()
+	SRWLOCK theLock = {};
 };
